@@ -18,6 +18,7 @@ options.add_argument('--disable-dev-shm-usage')
 options.add_argument('user-agent={0}'.format(user_agent))
 browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
 
+companies = ['한화생명','삼성전자','휴스틸']
 tables = []
 units = []
 
@@ -75,33 +76,62 @@ def get_unit(text):
     return text[start_index+len(find_text):end_index]
 
 def get_column_name(table, col_name=None):
+    result = []
     for col in table.columns.get_level_values(-1):
-        if col_name == col.replace(' ',''):
-            return col
-    return False
+        if col_name in col.replace(' ',''):
+            result.append(col)
+    return result
 
 def get_need_data(table):
     dvsn = '구분'
     begin = '기초'
     end = '기말'
     total = '계'
-    result = []
-    if get_column_name(table, begin):
-        if get_column_name(table, dvsn):
-            result.append({begin: []})
-            for i, col in enumerate(table[get_column_name(table, dvsn)]):
-                if total in col:
-                    result[len(result)-1][begin].append({
-                        col: table[get_column_name(table, begin)].iloc[i]
-                    })
-    if get_column_name(table, end):
-        if get_column_name(table, dvsn):
-            result.append({end: []})
-            for i, col in enumerate(table[get_column_name(table, dvsn)]):
-                if total in col:
-                    result[len(result)-1][end].append({
-                        col: table[get_column_name(table, end)].iloc[i]
-                    })
+    result = [{begin:[]},{end:[]}]
+
+    dvsn_columns = get_column_name(table, dvsn)
+    for dvsn_col in dvsn_columns:
+        begin_columns = get_column_name(table, begin)
+        for begin_col in begin_columns:
+            if begin_col:
+                for i, col in enumerate(table[dvsn_col]):
+                    if total in col:
+                        result[0][begin].append({
+                            col: table[begin_col].iloc[i]
+                        })
+        end_columns = get_column_name(table, end)
+        for end_col in end_columns:
+            if end_col:
+                for i, col in enumerate(table[dvsn_col]):
+                    if total in col:
+                        result[1][end].append({
+                            col: table[end_col].iloc[i]
+                        })
+        total_columns = get_column_name(table, total)
+        for total_col in total_columns:
+            if total == total_col[-1]:
+                pre_total_col = None
+                for j, col in enumerate(table.columns):
+                    if total_col in col:
+                        pre_total_col = col
+                for j, col in enumerate(table.columns):
+                    if type(col) is tuple:
+                        if dvsn_col in col:
+                            for i, col in enumerate(table[col]):
+                                if begin in col:
+                                    result[0][begin].append({col: table[pre_total_col].iloc[i]})
+                                if end in col:
+                                    result[1][end].append({col: table[pre_total_col].iloc[i]})
+                    else:
+                        for i, col in enumerate(table[table.columns[j]]):
+                            if begin in col:
+                                result[0][begin].append({
+                                    total_col: table[total_col].iloc[i]
+                                })
+                            if end in col:
+                                result[1][end].append({
+                                    total_col: table[total_col].iloc[i]
+                                })
     return result
 
 def find_acquisition_amount(name):
@@ -114,7 +144,6 @@ def find_acquisition_amount(name):
                 dfs = pd.read_html(str(check_tags[target_idx]))
                 df = dfs[0]
                 tables.append(df)
-                # summary = {k: v.iloc[0, 1].split('  ') for k, v in df.groupby('구 분')}
                 if '단위' in target_text and '원' in target_text:
                     units.append(get_unit(target_text))
                 else:
@@ -129,14 +158,15 @@ def find_acquisition_amount(name):
         target_idx += 1
 
 def main():
-    global tables, units
-    find_acquisition_amount('한화생명')
-    # find_acquisition_amount('삼성전자')
-    # find_acquisition_amount('휴스틸')
+    global tables, units, companies
 
-    print(units)
-    print(tables[0])
-    for table in tables:
-        print(get_need_data(table))
+    for company in companies:
+        find_acquisition_amount(company)
+
+    for i in range(len(companies)):
+        print(companies[i])
+        print(units[i])
+        print(get_need_data(tables[i]))
+        print("=================================================")
 
 main()
