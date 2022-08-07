@@ -5,7 +5,6 @@ from webdriver_manager.chrome import ChromeDriverManager
 import requests
 import xmltodict
 from bs4 import BeautifulSoup
-from flask import Flask
 from io import BytesIO
 from zipfile import ZipFile
 import pandas as pd
@@ -18,6 +17,9 @@ options.add_argument('--no-sandbox')
 options.add_argument('--disable-dev-shm-usage')
 options.add_argument('user-agent={0}'.format(user_agent))
 browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
+
+tables = []
+units = []
 
 def get_corp_code(name, match=True):
     res = requests.get('https://opendart.fss.or.kr/api/corpCode.xml', params={'crtfc_key':'a833e0e45d84a648428ad40598609e82f2bf226d'})
@@ -65,41 +67,76 @@ def get_dart_fss_data(name):
     check_tags = soup.select('p, table')
     return check_tags
 
+def get_unit(text):
+    text = text.replace(' ','')
+    find_text = '(단위:'
+    start_index = text.find(find_text)
+    end_index = text.find(')', start_index)
+    return text[start_index+len(find_text):end_index]
+
+def get_column_name(table, col_name=None):
+    for col in table.columns.get_level_values(-1):
+        if col_name == col.replace(' ',''):
+            return col
+    return False
+
+def get_need_data(table):
+    dvsn = '구분'
+    begin = '기초'
+    end = '기말'
+    total = '계'
+    result = []
+    if get_column_name(table, begin):
+        if get_column_name(table, dvsn):
+            result.append({begin: []})
+            for i, col in enumerate(table[get_column_name(table, dvsn)]):
+                if total in col:
+                    result[len(result)-1][begin].append({
+                        col: table[get_column_name(table, begin)].iloc[i]
+                    })
+    if get_column_name(table, end):
+        if get_column_name(table, dvsn):
+            result.append({end: []})
+            for i, col in enumerate(table[get_column_name(table, dvsn)]):
+                if total in col:
+                    result[len(result)-1][end].append({
+                        col: table[get_column_name(table, end)].iloc[i]
+                    })
+    return result
+
 def find_acquisition_amount(name):
     check_tags = get_dart_fss_data(name)
     target_idx = 0
-    result = ''
     while target_idx < len(check_tags):
         if check_tags[target_idx].name == 'table':
             target_text = check_tags[target_idx].text
             if '취득' in target_text and '토지' in target_text and '건물' in target_text and '기초' in target_text and '기말' in target_text:
                 dfs = pd.read_html(str(check_tags[target_idx]))
                 df = dfs[0]
+                tables.append(df)
                 # summary = {k: v.iloc[0, 1].split('  ') for k, v in df.groupby('구 분')}
-                print(df)
-                if not ('단위' in target_text and '원' in target_text):
+                if '단위' in target_text and '원' in target_text:
+                    units.append(get_unit(target_text))
+                else:
                     temp_idx = target_idx
                     while -1 < temp_idx:
                         temp_idx -= 1
+                        target_text = check_tags[temp_idx].text
                         if '단위' in target_text and '원' in target_text:
-                            result += str(target_text)
+                            units.append(get_unit(target_text))
                             break
-                result += str(target_text)
                 break
         target_idx += 1
-    # result = '<h2>'+name+'</h2>'+result+'<br><br>'
-    return result
 
-app = Flask(__name__)
-
-@app.route('/')
 def main():
-    contents = '<html><head><style>table{border-spacing:0px;}td{padding:5px;}</style></head><body>'
-    contents += find_acquisition_amount('한화생명')
-    contents += find_acquisition_amount('삼성전자')
-    contents += find_acquisition_amount('휴스틸')
-    contents += '</body></html>'
-    return contents
+    global tables, units
+    find_acquisition_amount('한화생명')
+    # find_acquisition_amount('삼성전자')
+    # find_acquisition_amount('휴스틸')
 
-# app.run(host="localhost",port=5001)
+    print(units)
+    print(tables[0])
+    for table in tables:
+        print(get_need_data(table))
+
 main()
