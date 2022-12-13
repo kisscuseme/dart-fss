@@ -18,7 +18,7 @@ options.add_argument('--disable-dev-shm-usage')
 options.add_argument('user-agent={0}'.format(user_agent))
 browser = webdriver.Chrome(ChromeDriverManager().install(),options=options)
 
-companies = ['한화생명','삼성전자','휴스틸']
+companies = []
 tables = []
 units = []
 
@@ -160,12 +160,17 @@ def find_acquisition_amount(name):
 def main():
     global tables, units, companies
 
+    companies.append('한화생명')
+    companies.append('삼성전자')
+    companies.append('휴스틸')
+
     for company in companies:
         find_acquisition_amount(company)
 
     for i in range(len(companies)):
         print(companies[i])
         print(units[i])
+        # print(tables[i])
         print(get_need_data(tables[i]))
         print("=================================================")
 
