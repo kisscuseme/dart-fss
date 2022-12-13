@@ -8,6 +8,9 @@ from bs4 import BeautifulSoup
 from io import BytesIO
 from zipfile import ZipFile
 import pandas as pd
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
 user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36'
 
@@ -23,7 +26,7 @@ tables = []
 units = []
 
 def get_corp_code(name, match=True):
-    res = requests.get('https://opendart.fss.or.kr/api/corpCode.xml', params={'crtfc_key':'a833e0e45d84a648428ad40598609e82f2bf226d'})
+    res = requests.get('https://opendart.fss.or.kr/api/corpCode.xml', params={'crtfc_key':os.getenv('CRTFC_KEY')})
     zipfile_bytes = res.content
     zipfile_obj = ZipFile(BytesIO(zipfile_bytes))
     xmlfile_objs = {name: zipfile_obj.read(name) for name in zipfile_obj.namelist()}
